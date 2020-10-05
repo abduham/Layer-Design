@@ -1,0 +1,22 @@
+ public List<Opportunity> ProcessProjectGeneralRequest(int inputRequestId, int projectId)
+        {
+            List<Opportunity> opportunity = null;
+            var sqlParameter = new List<DBParameter>
+            {
+                 new DBParameter(Constants.InputRequestId, inputRequestId,SqlDbType.Int, ParameterDirection.Input),
+                 new DBParameter(Constants.ProjectId, projectId,SqlDbType.Int, ParameterDirection.Input),
+            };
+            using (var sqlDataReader = SOFTCRMSqlWrapper.ExecuteReader(StoredProcedures.ProcessProjectGeneralRequest, sqlParameter, DBName.MOPRedesign))
+            {
+                if (sqlDataReader != null)
+                {
+                    opportunity = new List<Opportunity>();
+                    while (sqlDataReader.Read())
+                    {
+
+                        opportunity.Add(BEHelpers.GetBEObject<Opportunity>(sqlDataReader));
+                    }
+                }
+            }
+            return opportunity;
+        }

@@ -1,0 +1,127 @@
+CREATE TABLE [dbo].[CRM_ErrorLog](
+[LogId] [int] IDENTITY(1,1) NOT NULL,
+[ModuleName] [varchar](100) NULL,
+[ClassName] [varchar](100) NULL,
+[MethodName] [varchar](100) NULL,
+[UserName] [varchar](100) NULL,
+[LogType] [varchar](50) NULL,
+[Message] [varchar](max) NULL,
+[LogCreatedDateTime] [datetime] NULL,
+[LogSeverity] [int] NULL,
+[ClientMachineID] [varchar](100) NULL,
+[ClientDomainName] [varchar](100) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+
+USE [MOPRedesign]
+GO
+/****** Object:  StoredProcedure [dbo].[InsertErrorLog]    Script Date: 10/12/2020 9:43:23 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROCEDURE [dbo].[InsertErrorLog]
+      @ModuleName VARCHAR(200),
+      @ClassName VARCHAR(200),
+      @MethodName VARCHAR(200),
+      @UserName VARCHAR(200),
+      @LogType VARCHAR(100),
+      @Message VARCHAR(MAX),
+      @LogSeverity   INT,
+      @ClientMachineID VARCHAR(100),
+      @ClientDomainName VARCHAR(100)
+AS
+BEGIN
+SET NOCOUNT ON;
+BEGIN TRY
+      INSERT INTO [CRM_ERRORLOG]
+      (
+            [ModuleName],
+            [ClassName],
+            [MethodName],
+            [UserName],
+            [LogType],
+            [Message],
+            [LogCreatedDateTime],
+            [LogSeverity],
+            [ClientMachineID],
+            [ClientDomainName]
+      )
+      VALUES
+      (
+            @ModuleName,
+            @ClassName,
+            @MethodName,
+            @UserName,
+            @LogType,
+            @Message,
+            GetDate(),
+            @LogSeverity,
+            @ClientMachineID,
+            @ClientDomainName
+      )
+      SELECT SCOPE_IDENTITY() AS ID
+      select * from [CRM_ERRORLOG] where LogId = SCOPE_IDENTITY();
+END TRY
+
+BEGIN CATCH
+DECLARE @ErrorMessage Varchar(4000)
+DECLARE @ErrorSeverity Int
+DECLARE @ErrorState Int
+SELECT @ErrorMessage=ERROR_MESSAGE()
++ ' Procedure Name:' + ERROR_PROCEDURE() + ' ' +
+'Line Number:' + cast(ERROR_LINE() as varchar(10)),
+@ErrorSeverity=Error_Severity(),
+@ErrorState=Error_State();
+RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+END CATCH
+END
+
+
+
+USE [MOPRedesign]
+GO
+/****** Object:  StoredProcedure [dbo].[CRM_ProjectDetails]    Script Date: 10/12/2020 9:45:04 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROC [dbo].[CRM_ProjectDetails]
+(@ProjectId int, @ProductId int ,@FunnelPositionID int , @ProjectProbability int )
+AS BEGIN TRY  
+BEGIN TRANSACTION;
+if((Select count(*) from ProjectDetail where ProjectID=@ProjectId and ProductID=@ProductId)=0)
+BEGIN
+insert into ProjectDetail(ProjectID,ProductID,FunnelPositionID,Probability,RowCreatedDate,RowLastUpdatedDate,TransUser)
+values( @ProjectId ,@ProductId ,@FunnelPositionID ,[dbo].[fn_GetCRMRangeProbability](@ProjectProbability) ,getdate() ,getdate() ,'CRM')
+END
+ELSE BEGIN
+UPDATE ProjectDetail SET FunnelPositionID=@FunnelPositionID,Probability=[dbo].[fn_GetCRMRangeProbability](@ProjectProbability),RowLastUpdatedDate=getdate()
+where ProjectId =@ProjectId and ProductId=@ProductId
+END
+COMMIT;
+END TRY  
+BEGIN CATCH    
+ROLLBACK    
+
+DECLARE @ErrorMessage Varchar(4000)
+,@ErrorSeverity Int
+,@HostName Varchar(4000)
+,@DomainName Varchar(4000)
+,@UserName Varchar(100)='Windows Service'
+SELECT @ErrorMessage=ERROR_MESSAGE()
++ ' Procedure Name:' + ERROR_PROCEDURE() + ' ' +
+'Line Number:' + cASt(ERROR_LINE() AS varchar(10)),
+@ErrorSeverity=Error_Severity(),
+@HostName=HOST_NAME(),
+@DomainName = DEFAULT_DOMAIN()
+
+EXEC [dbo].[InsertErrorLog] 'CRM_ProjectDetails','CRM_ProjectDetails','Process project details Request',@UserName,'Insert',
+@ErrorMessage,@ErrorSeverity,@HostName,@DomainName
+
+ END CATCH
+
+
